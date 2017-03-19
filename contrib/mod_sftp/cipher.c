@@ -42,6 +42,7 @@ struct sftp_cipher {
   uint32_t key_len;
 
   size_t discard_len;
+  size_t auth_len;
 };
 
 /* We need to keep the old ciphers around, so that we can handle N
@@ -51,14 +52,14 @@ struct sftp_cipher {
  */
 
 static struct sftp_cipher read_ciphers[2] = {
-  { NULL, NULL, NULL, 0, NULL, 0, 0 },
-  { NULL, NULL, NULL, 0, NULL, 0, 0 }
+  { NULL, NULL, NULL, 0, NULL, 0, 0, 0 },
+  { NULL, NULL, NULL, 0, NULL, 0, 0, 0 }
 };
 static EVP_CIPHER_CTX *read_ctxs[2];
 
 static struct sftp_cipher write_ciphers[2] = {
-  { NULL, NULL, NULL, 0, NULL, 0, 0 },
-  { NULL, NULL, NULL, 0, NULL, 0, 0 }
+  { NULL, NULL, NULL, 0, NULL, 0, 0, 0 },
+  { NULL, NULL, NULL, 0, NULL, 0, 0, 0 }
 };
 static EVP_CIPHER_CTX *write_ctxs[2];
 
@@ -77,15 +78,17 @@ static unsigned int write_cipher_idx = 0;
 static void clear_cipher(struct sftp_cipher *);
 
 static unsigned int get_next_read_index(void) {
-  if (read_cipher_idx == 1)
+  if (read_cipher_idx == 1) {
     return 0;
+  }
 
   return 1;
 }
 
 static unsigned int get_next_write_index(void) {
-  if (write_cipher_idx == 1)
+  if (write_cipher_idx == 1) {
     return 0;
+  }
 
   return 1;
 }
@@ -355,7 +358,7 @@ const char *sftp_cipher_get_read_algo(void) {
 
 int sftp_cipher_set_read_algo(const char *algo) {
   unsigned int idx = read_cipher_idx;
-  size_t key_len, discard_len;
+  size_t key_len, discard_len, auth_len;
 
   if (read_ciphers[idx].key) {
     /* If we have an existing key, it means that we are currently rekeying. */
@@ -363,7 +366,7 @@ int sftp_cipher_set_read_algo(const char *algo) {
   }
 
   read_ciphers[idx].cipher = sftp_crypto_get_cipher(algo, &key_len,
-    &discard_len);
+    &discard_len, &auth_len);
   if (read_ciphers[idx].cipher == NULL) {
     return -1;
   }
@@ -371,6 +374,8 @@ int sftp_cipher_set_read_algo(const char *algo) {
   read_ciphers[idx].algo = algo;
   read_ciphers[idx].key_len = (uint32_t) key_len;
   read_ciphers[idx].discard_len = discard_len;
+  read_ciphers[idx].auth_len = auth_len;
+
   return 0;
 }
 
@@ -380,7 +385,7 @@ int sftp_cipher_set_read_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
   unsigned char *buf, *ptr;
   char letter;
   uint32_t buflen, bufsz, id_len;
-  int key_len;
+  int key_len, auth_len;
   struct sftp_cipher *cipher;
   EVP_CIPHER_CTX *cipher_ctx;
 
@@ -419,8 +424,6 @@ int sftp_cipher_set_read_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
     return -1;
   }
 
-  key_len = (int) cipher->key_len;
-
   /* client-to-server key: HASH(K || H || "C" || session_id)
    * server-to-client key: HASH(K || H || "D" || session_id)
    */
@@ -440,6 +443,22 @@ int sftp_cipher_set_read_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
     return -1;
   }
 
+  auth_len = (int) cipher->auth_len;
+  if (auth_len > 0) {
+pr_trace_msg("ssh2", 1, "using auth len (%d bytes) for %s cipher for decryption", auth_len, cipher->algo);
+#ifdef HAVE_AES_GCM_OPENSSL
+    if (EVP_CIPHER_CTX_ctrl(cipher_ctx, EVP_CTRL_GCM_SET_IV_FIXED, -1,
+        cipher->iv) != 1) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error setting GCM IV for %s cipher for decryption: %s", cipher->algo,
+        sftp_crypto_get_errors());
+      pr_memscrub(ptr, bufsz);
+      return -1;
+    }
+#endif /* HAVE_AES_GCM_OPENSSL */
+  }
+
+  key_len = (int) cipher->key_len;
   if (key_len > 0) {
     /* Next, set the key length. */
     if (EVP_CIPHER_CTX_set_key_length(cipher_ctx, key_len) != 1) {
@@ -520,9 +539,23 @@ const char *sftp_cipher_get_write_algo(void) {
   return NULL;
 }
 
+int sftp_cipher_read_tag(pool *p, unsigned char *data, uint32_t data_len,
+    unsigned char **buf, uint32_t *buflen) {
+  struct sftp_cipher *cipher;
+
+  cipher = &(read_ciphers[read_cipher_idx]);
+  if (cipher->auth_len == 0) {
+    return 0;
+  }
+
+  /* XXX TODO For AEAD ciphers */
+  errno = ENOSYS;
+  return -1;
+}
+
 int sftp_cipher_set_write_algo(const char *algo) {
   unsigned int idx = write_cipher_idx;
-  size_t key_len, discard_len;
+  size_t key_len, discard_len, auth_len;
 
   if (write_ciphers[idx].key) {
     /* If we have an existing key, it means that we are currently rekeying. */
@@ -530,7 +563,7 @@ int sftp_cipher_set_write_algo(const char *algo) {
   }
 
   write_ciphers[idx].cipher = sftp_crypto_get_cipher(algo, &key_len,
-    &discard_len);
+    &discard_len, &auth_len);
   if (write_ciphers[idx].cipher == NULL) {
     return -1;
   }
@@ -538,6 +571,8 @@ int sftp_cipher_set_write_algo(const char *algo) {
   write_ciphers[idx].algo = algo;
   write_ciphers[idx].key_len = (uint32_t) key_len;
   write_ciphers[idx].discard_len = discard_len;
+  write_ciphers[idx].auth_len = auth_len;
+
   return 0;
 }
 
@@ -547,7 +582,7 @@ int sftp_cipher_set_write_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
   unsigned char *buf, *ptr;
   char letter;
   uint32_t buflen, bufsz, id_len;
-  int key_len;
+  int key_len, auth_len;
   struct sftp_cipher *cipher;
   EVP_CIPHER_CTX *cipher_ctx;
 
@@ -586,8 +621,6 @@ int sftp_cipher_set_write_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
     return -1;
   }
 
-  key_len = (int) cipher->key_len;
-
   /* client-to-server key: HASH(K || H || "C" || session_id)
    * server-to-client key: HASH(K || H || "D" || session_id)
    */
@@ -607,6 +640,22 @@ int sftp_cipher_set_write_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
     return -1;
   }
 
+  auth_len = (int) cipher->auth_len;
+  if (auth_len > 0) {
+pr_trace_msg("ssh2", 1, "using auth len (%d bytes) for %s cipher for encryption", auth_len, cipher->algo);
+#ifdef HAVE_AES_GCM_OPENSSL
+    if (EVP_CIPHER_CTX_ctrl(cipher_ctx, EVP_CTRL_GCM_SET_IV_FIXED, -1,
+        cipher->iv) != 1) {
+      (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
+        "error setting GCM IV for %s cipher for encryption: %s", cipher->algo,
+        sftp_crypto_get_errors());
+      pr_memscrub(ptr, bufsz);
+      return -1;
+    }
+#endif /* HAVE_AES_GCM_OPENSSL */
+  }
+
+  key_len = (int) cipher->key_len;
   if (key_len > 0) {
     /* Next, set the key length. */
     if (EVP_CIPHER_CTX_set_key_length(cipher_ctx, key_len) != 1) {
@@ -682,6 +731,20 @@ int sftp_cipher_write_data(struct ssh2_packet *pkt, unsigned char *buf,
 
   *buflen = 0;
   return 0;
+}
+
+int sftp_cipher_write_tag(struct ssh2_packet *pkt, unsigned char *buf,
+    size_t *buflen) {
+  struct sftp_cipher *cipher;
+
+  cipher = &(write_ciphers[write_cipher_idx]);
+  if (cipher->auth_len == 0) {
+    return 0;
+  }
+
+  /* XXX TODO For AEAD ciphers */
+  errno = ENOSYS;
+  return -1;
 }
 
 #if OPENSSL_VERSION_NUMBER < 0x1000000fL

@@ -866,7 +866,7 @@ static int get_dh_nbits(struct sftp_kex *kex) {
   const EVP_MD *digest;
 
   algo = kex->session_names->c2s_encrypt_algo;
-  cipher = sftp_crypto_get_cipher(algo, NULL, NULL);
+  cipher = sftp_crypto_get_cipher(algo, NULL, NULL, NULL);
   if (cipher != NULL) {
     int block_size, key_len;
 
@@ -888,7 +888,7 @@ static int get_dh_nbits(struct sftp_kex *kex) {
   }
 
   algo = kex->session_names->s2c_encrypt_algo;
-  cipher = sftp_crypto_get_cipher(algo, NULL, NULL);
+  cipher = sftp_crypto_get_cipher(algo, NULL, NULL, NULL);
   if (cipher != NULL) {
     int block_size, key_len;
 
@@ -1984,8 +1984,9 @@ static int setup_s2c_encrypt_algo(struct sftp_kex *kex, const char *algo) {
   return 0;
 }
 
-static int setup_c2s_mac_algo(struct sftp_kex *kex, const char *algo) {
-  if (sftp_mac_set_read_algo(algo) < 0) {
+static int setup_c2s_mac_algo(struct sftp_kex *kex, const char *algo,
+    int use_aad) {
+  if (sftp_mac_set_read_algo(algo, use_aad) < 0) {
     return -1;
   }
 
@@ -1993,8 +1994,9 @@ static int setup_c2s_mac_algo(struct sftp_kex *kex, const char *algo) {
   return 0;
 }
 
-static int setup_s2c_mac_algo(struct sftp_kex *kex, const char *algo) {
-  if (sftp_mac_set_write_algo(algo) < 0) {
+static int setup_s2c_mac_algo(struct sftp_kex *kex, const char *algo,
+    int use_aad) {
+  if (sftp_mac_set_write_algo(algo, use_aad) < 0) {
     return -1;
   }
 
@@ -2036,6 +2038,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
   const char *kex_algo, *shared, *client_list, *server_list;
   const char *client_pref, *server_pref;
   pool *tmp_pool;
+  int c2s_encrypt_uses_aad = FALSE, s2c_encrypt_uses_aad = FALSE;
 
   tmp_pool = make_sub_pool(kex->pool);
   pr_pool_tag(tmp_pool, "SSH2 session shared name pool");
@@ -2101,7 +2104,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     "server-sent host key algorithms: %s", server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_hostkey_algo(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2129,7 +2132,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_c2s_encrypt_algo(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2139,6 +2142,9 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
       " + Session client-to-server encryption: %s", shared);
     pr_trace_msg(trace_channel, 20,
       "session client-to-server encryption algorithm: %s", shared);
+
+    /* Is this an AEAD cipher? */
+    c2s_encrypt_uses_aad = sftp_crypto_is_aead_algo(shared);
 
   } else {
     (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -2157,7 +2163,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_s2c_encrypt_algo(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2167,6 +2173,9 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
       " + Session server-to-client encryption: %s", shared);
     pr_trace_msg(trace_channel, 20,
       "session server-to-client encryption algorithm: %s", shared);
+
+    /* Is this an AEAD cipher? */
+    s2c_encrypt_uses_aad = sftp_crypto_is_aead_algo(shared);
 
   } else {
     (void) pr_log_writefile(sftp_logfd, MOD_SFTP_VERSION,
@@ -2185,8 +2194,8 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
-    if (setup_c2s_mac_algo(kex, shared) < 0) {
+  if (shared != NULL) {
+    if (setup_c2s_mac_algo(kex, shared, c2s_encrypt_uses_aad) < 0) {
       destroy_pool(tmp_pool);
       return -1;
     }
@@ -2213,8 +2222,8 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
-    if (setup_s2c_mac_algo(kex, shared) < 0) {
+  if (shared != NULL) {
+    if (setup_s2c_mac_algo(kex, shared, s2c_encrypt_uses_aad) < 0) {
       destroy_pool(tmp_pool);
       return -1;
     }
@@ -2241,7 +2250,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     "server-sent client compression algorithms: %s", server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_c2s_comp_algo(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2269,7 +2278,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     "server-sent server compression algorithms: %s", server_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_s2c_comp_algo(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2297,7 +2306,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     "server-sent client languages: %s", client_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_c2s_lang(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;
@@ -2328,7 +2337,7 @@ static int get_session_names(struct sftp_kex *kex, int *correct_guess) {
     "server-sent server languages: %s", client_list);
 
   shared = sftp_misc_namelist_shared(kex->pool, client_list, server_list);
-  if (shared) {
+  if (shared != NULL) {
     if (setup_s2c_lang(kex, shared) < 0) {
       destroy_pool(tmp_pool);
       return -1;

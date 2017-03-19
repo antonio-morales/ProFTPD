@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_sftp misc crypto routines
- * Copyright (c) 2008-2016 TJ Saunders
+ * Copyright (c) 2008-2017 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,12 +28,14 @@
 #include "mod_sftp.h"
 
 void sftp_crypto_free(int);
-const EVP_CIPHER *sftp_crypto_get_cipher(const char *, size_t *, size_t *);
-const EVP_MD *sftp_crypto_get_digest(const char *, uint32_t *);
-int sftp_crypto_set_driver(const char *);
-const char *sftp_crypto_get_kexinit_cipher_list(pool *);
-const char *sftp_crypto_get_kexinit_digest_list(pool *);
+const EVP_CIPHER *sftp_crypto_get_cipher(const char *name, size_t *key_len,
+  size_t *discard_len, size_t *auth_len);
+const EVP_MD *sftp_crypto_get_digest(const char *name, uint32_t *mac_len);
+int sftp_crypto_set_driver(const char *name);
+const char *sftp_crypto_get_kexinit_cipher_list(pool *p);
+const char *sftp_crypto_get_kexinit_digest_list(pool *p);
 
 size_t sftp_crypto_get_size(size_t, size_t);
+int sftp_crypto_is_aead_algo(const char *name);
 
 #endif /* MOD_SFTP_CRYPTO_H */

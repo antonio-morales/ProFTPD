@@ -1,6 +1,6 @@
 /*
  * ProFTPD - mod_sftp packet IO
- * Copyright (c) 2008-2016 TJ Saunders
+ * Copyright (c) 2008-2017 TJ Saunders
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -624,12 +624,14 @@ static int read_packet_mac(int sockfd, struct ssh2_packet *pkt,
   int res;
   uint32_t mac_len = pkt->mac_len;
 
-  if (mac_len == 0)
+  if (mac_len == 0) {
     return 0;
+  }
 
   res = sftp_ssh2_packet_sock_read(sockfd, buf, mac_len, 0);
-  if (res < 0)
+  if (res < 0) {
     return res;
+  }
 
   pkt->mac = palloc(pkt->pool, pkt->mac_len);
   memmove(pkt->mac, buf, res);

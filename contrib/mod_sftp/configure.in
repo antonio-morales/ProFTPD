@@ -1,5 +1,5 @@
 dnl ProFTPD - mod_sftp
-dnl Copyright (c) 2012-2016 TJ Saunders <tj@castaglia.org>
+dnl Copyright (c) 2012-2017 TJ Saunders <tj@castaglia.org>
 dnl
 dnl This program is free software; you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -194,6 +194,35 @@ AC_TRY_LINK(
   [
     AC_MSG_RESULT(yes)
     AC_DEFINE(HAVE_SHA512_OPENSSL, 1, [OpenSSL supports SHA384/SHA512])
+    LIBS="$saved_libs"
+  ],
+  [
+    AC_MSG_RESULT(no)
+    LIBS="$saved_libs"
+  ]
+)
+
+dnl Splice out -lsupp, since that library hasn't been built yet
+LIBS=`echo "$LIBS" | sed -e 's/-lsupp//g'`;
+LIBS="-lcrypto -lz $LIBS"
+
+AC_MSG_CHECKING([whether OpenSSL supports AES GCM via EVP])
+AC_TRY_LINK(
+  [
+    #include <openssl/evp.h>
+  ],
+  [
+    exit(EVP_aes_128_gcm() == NULL ||
+         EVP_aes_256_gcm() == NULL ||
+         EVP_CTRL_GCM_SET_IV_FIXED == 0 ||
+         EVP_CTRL_GCM_IV_GEN == 0 ||
+         EVP_CTRL_GCM_SET_TAG == 0 ||
+         EVP_CTRL_GCM_GET_TAG == 0 ||
+         EVP_CIPHER_CTX_ctrl(NULL, 0, 0, NULL) == 0);
+  ],
+  [
+    AC_MSG_RESULT(yes)
+    AC_DEFINE(HAVE_AES_GCM_OPENSSL, 1, [OpenSSL supports AES GCM via EVP])
     LIBS="$saved_libs"
   ],
   [

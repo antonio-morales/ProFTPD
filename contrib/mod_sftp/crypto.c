@@ -49,6 +49,9 @@ struct sftp_cipher {
    */
   size_t discard_len;
 
+  /* Used for AEAD algorithms. */
+  size_t auth_len;
+
 #if OPENSSL_VERSION_NUMBER > 0x000907000L
   const EVP_CIPHER *(*get_type)(void);
 #else
@@ -82,31 +85,36 @@ static struct sftp_cipher ciphers[] = {
   /* The handling of NULL openssl_name and get_type fields is done in
    * sftp_crypto_get_cipher(), as special cases.
    */
+#ifdef HAVE_AES_GCM_OPENSSL
+  { "aes128-gcm@openssh.com",	NULL,	0, 16,	EVP_aes_128_gcm, TRUE, TRUE },
+  { "aes256-gcm@openssh.com",	NULL,	0, 16,	EVP_aes_256_gcm, TRUE, TRUE },
+#endif /* HAVE_AES_GCM_OPENSSL */
+
 #if OPENSSL_VERSION_NUMBER > 0x000907000L
-  { "aes256-ctr",	NULL,		0,	NULL,	TRUE, TRUE },
-  { "aes192-ctr",	NULL,		0,	NULL,	TRUE, TRUE },
-  { "aes128-ctr",	NULL,		0,	NULL,	TRUE, TRUE },
+  { "aes256-ctr",	NULL,		0, 0,	NULL,	TRUE, TRUE },
+  { "aes192-ctr",	NULL,		0, 0,	NULL,	TRUE, TRUE },
+  { "aes128-ctr",	NULL,		0, 0,	NULL,	TRUE, TRUE },
 
 # ifndef HAVE_AES_CRIPPLED_OPENSSL
-  { "aes256-cbc",	"aes-256-cbc",	0,	EVP_aes_256_cbc, TRUE, TRUE },
-  { "aes192-cbc",	"aes-192-cbc",	0,	EVP_aes_192_cbc, TRUE, TRUE },
+  { "aes256-cbc",	"aes-256-cbc",	0, 0,	EVP_aes_256_cbc, TRUE, TRUE },
+  { "aes192-cbc",	"aes-192-cbc",	0, 0,	EVP_aes_192_cbc, TRUE, TRUE },
 # endif /* !HAVE_AES_CRIPPLED_OPENSSL */
 
-  { "aes128-cbc",	"aes-128-cbc",	0,	EVP_aes_128_cbc, TRUE, TRUE },
+  { "aes128-cbc",	"aes-128-cbc",	0, 0,	EVP_aes_128_cbc, TRUE, TRUE },
 #endif
 
 #if !defined(OPENSSL_NO_BF)
-  { "blowfish-ctr",	NULL,		0,	NULL,	TRUE, FALSE },
-  { "blowfish-cbc",	"bf-cbc",	0,	EVP_bf_cbc, TRUE, FALSE },
+  { "blowfish-ctr",	NULL,		0, 0,	NULL,	TRUE, FALSE },
+  { "blowfish-cbc",	"bf-cbc",	0, 0,	EVP_bf_cbc, TRUE, FALSE },
 #endif /* !OPENSSL_NO_BF */
 
 #if !defined(OPENSSL_NO_CAST)
-  { "cast128-cbc",	"cast5-cbc",	0,	EVP_cast5_cbc, TRUE, FALSE },
+  { "cast128-cbc",	"cast5-cbc",	0, 0,	EVP_cast5_cbc, TRUE, FALSE },
 #endif /* !OPENSSL_NO_CAST */
 
 #if !defined(OPENSSL_NO_RC4)
-  { "arcfour256",	"rc4",		1536,	EVP_rc4, TRUE, FALSE },
-  { "arcfour128",	"rc4",		1536,	EVP_rc4, TRUE, FALSE },
+  { "arcfour256",	"rc4",		1536, 0, EVP_rc4, TRUE, FALSE },
+  { "arcfour128",	"rc4",		1536, 0, EVP_rc4, TRUE, FALSE },
 #endif /* !OPENSSL_NO_RC4 */
 
 #if 0
@@ -117,16 +125,16 @@ static struct sftp_cipher ciphers[] = {
    * require explicit configuration via SFTPCiphers, and would generate
    * warnings about its unsafe use.
    */
-  { "arcfour",		"rc4",		0,	EVP_rc4, FALSE, FALSE },
+  { "arcfour",		"rc4",		0, 0,	EVP_rc4, FALSE, FALSE },
 #endif
 
 #if !defined(OPENSSL_NO_DES)
-  { "3des-ctr",		NULL,		0,	NULL, TRUE, TRUE },
-  { "3des-cbc",		"des-ede3-cbc",	0,	EVP_des_ede3_cbc, TRUE, TRUE },
+  { "3des-ctr",		NULL,		0, 0,	NULL, TRUE, TRUE },
+  { "3des-cbc",		"des-ede3-cbc",	0, 0,	EVP_des_ede3_cbc, TRUE, TRUE },
 #endif /* !OPENSSL_NO_DES */
 
-  { "none",		"null",		0,	EVP_enc_null, FALSE, TRUE },
-  { NULL, NULL, 0, NULL, FALSE, FALSE }
+  { "none",		"null",		0, 0,	EVP_enc_null, FALSE, TRUE },
+  { NULL, NULL, 0, 0, NULL, FALSE, FALSE }
 };
 
 struct sftp_digest {
@@ -954,7 +962,7 @@ static const EVP_MD *get_umac128_digest(void) {
 #endif /* OpenSSL older than 0.9.7 */
 
 const EVP_CIPHER *sftp_crypto_get_cipher(const char *name, size_t *key_len,
-    size_t *discard_len) {
+    size_t *discard_len, size_t *auth_len) {
   register unsigned int i;
 
   for (i = 0; ciphers[i].name; i++) {
@@ -996,7 +1004,7 @@ const EVP_CIPHER *sftp_crypto_get_cipher(const char *name, size_t *key_len,
         cipher = ciphers[i].get_type();
       }
 
-      if (key_len) {
+      if (key_len != NULL) {
         if (strncmp(name, "arcfour256", 11) != 0) {
           *key_len = 0;
 
@@ -1009,8 +1017,12 @@ const EVP_CIPHER *sftp_crypto_get_cipher(const char *name, size_t *key_len,
         }
       }
 
-      if (discard_len) {
+      if (discard_len != NULL) {
         *discard_len = ciphers[i].discard_len;
+      }
+
+      if (auth_len != NULL) {
+        *auth_len = ciphers[i].auth_len;
       }
 
       return cipher;
@@ -1067,7 +1079,7 @@ const char *sftp_crypto_get_kexinit_cipher_list(pool *p) {
    */
 
   c = find_config(main_server->conf, CONF_PARAM, "SFTPCiphers", FALSE);
-  if (c) {
+  if (c != NULL) {
     register unsigned int i;
 
     for (i = 0; i < c->argc; i++) {
@@ -1094,10 +1106,14 @@ const char *sftp_crypto_get_kexinit_cipher_list(pool *p) {
                 pstrdup(p, ciphers[j].name), NULL);
 
             } else {
-              /* The CTR modes are special cases. */
+              /* The CTR modes are special cases, as are the GCM ciphers. */
 
               if (strncmp(ciphers[j].name, "blowfish-ctr", 13) == 0 ||
                   strncmp(ciphers[j].name, "3des-ctr", 9) == 0
+#ifdef HAVE_AES_GCM_OPENSSL
+                  || strcmp(ciphers[j].name, "aes128-gcm@openssh.com") == 0 ||
+                  strcmp(ciphers[j].name, "aes256-gcm@openssh.com") == 0
+#endif /* HAVE_AES_GCM_OPENSSL */
 #if OPENSSL_VERSION_NUMBER > 0x000907000L
                   || strncmp(ciphers[j].name, "aes256-ctr", 11) == 0 ||
                   strncmp(ciphers[j].name, "aes192-ctr", 11) == 0 ||
@@ -1147,10 +1163,14 @@ const char *sftp_crypto_get_kexinit_cipher_list(pool *p) {
               pstrdup(p, ciphers[i].name), NULL);
 
           } else {
-            /* The CTR modes are special cases. */
+            /* The CTR modes are special cases, as are the GCM ciphers */
 
             if (strncmp(ciphers[i].name, "blowfish-ctr", 13) == 0 ||
                 strncmp(ciphers[i].name, "3des-ctr", 9) == 0
+#ifdef HAVE_AES_GCM_OPENSSL
+                  || strcmp(ciphers[i].name, "aes128-gcm@openssh.com") == 0 ||
+                  strcmp(ciphers[i].name, "aes256-gcm@openssh.com") == 0
+#endif /* HAVE_AES_GCM_OPENSSL */
 #if OPENSSL_VERSION_NUMBER > 0x000907000L
                 || strncmp(ciphers[i].name, "aes256-ctr", 11) == 0 ||
                 strncmp(ciphers[i].name, "aes192-ctr", 11) == 0 ||
@@ -1353,6 +1373,22 @@ size_t sftp_crypto_get_size(size_t first, size_t second) {
 #endif /* !roundup */
 }
 
+/* Is the named algorithm an AEAD algorithm? */
+int sftp_crypto_is_aead_algo(const char *name) {
+  if (name == NULL) {
+    return FALSE;
+  }
+
+#ifdef HAVE_AES_GCM_OPENSSL
+  if (strcmp(name, "aes128-gcm@openssh.com") == 0 ||
+      strcmp(name, "aes128-gcm@openssh.com") == 0) {
+    return TRUE;
+  }
+#endif /* HAVE_AES_GCM_OPENSSL */
+
+  return FALSE;
+}
+
 void sftp_crypto_free(int flags) {
 
   /* Only call EVP_cleanup() et al if other OpenSSL-using modules are not
@@ -1478,4 +1514,3 @@ int sftp_crypto_set_driver(const char *driver) {
   return -1;
 #endif
 }
-

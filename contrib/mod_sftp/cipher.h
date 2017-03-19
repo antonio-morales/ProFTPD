@@ -38,16 +38,21 @@ size_t sftp_cipher_get_block_size(void);
 void sftp_cipher_set_block_size(size_t);
 
 const char *sftp_cipher_get_read_algo(void);
-int sftp_cipher_set_read_algo(const char *);
-int sftp_cipher_set_read_key(pool *, const EVP_MD *, const BIGNUM *,
-  const char *, uint32_t, int);
-int sftp_cipher_read_data(pool *, unsigned char *, uint32_t,
-  unsigned char **, uint32_t *);
+int sftp_cipher_set_read_algo(const char *name);
+int sftp_cipher_set_read_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
+  const char *h, uint32_t hlen, int role);
+int sftp_cipher_read_data(pool *p, unsigned char *data, uint32_t data_len,
+  unsigned char **buf, uint32_t *buflen);
+int sftp_cipher_read_tag(pool *p, unsigned char *data, uint32_t data_len,
+  unsigned char **buf, uint32_t *buflen);
 
 const char *sftp_cipher_get_write_algo(void);
-int sftp_cipher_set_write_algo(const char *);
-int sftp_cipher_set_write_key(pool *, const EVP_MD *, const BIGNUM *,
-  const char *, uint32_t, int);
-int sftp_cipher_write_data(struct ssh2_packet *, unsigned char *, size_t *);
+int sftp_cipher_set_write_algo(const char *name);
+int sftp_cipher_set_write_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
+  const char *h, uint32_t hlen, int role);
+int sftp_cipher_write_data(struct ssh2_packet *pkt, unsigned char *buf,
+  size_t *buflen);
+int sftp_cipher_write_tag(struct ssh2_packet *pkt, unsigned char *buf,
+  size_t *buflen);
 
 #endif /* MOD_SFTP_CIPHER_H */

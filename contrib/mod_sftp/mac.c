@@ -37,6 +37,11 @@ struct sftp_mac {
   const char *algo;
   int algo_type;
 
+  /* For the MAC, should we use the associated authentication data/tag from
+   * the cipher, for AEAD ciphers?
+   */
+  int use_aad;
+
   const EVP_MD *digest;
 
   unsigned char *key;
@@ -64,15 +69,15 @@ struct sftp_mac {
  */
 
 static struct sftp_mac read_macs[] = {
-  { NULL, 0, NULL, NULL, 0 },
-  { NULL, 0, NULL, NULL, 0 }
+  { NULL, 0, FALSE, NULL, NULL, 0 },
+  { NULL, 0, FALSE, NULL, NULL, 0 }
 };
 static HMAC_CTX *hmac_read_ctxs[2];
 static struct umac_ctx *umac_read_ctxs[2];
 
 static struct sftp_mac write_macs[] = {
-  { NULL, 0, NULL, NULL, 0 },
-  { NULL, 0, NULL, NULL, 0 }
+  { NULL, 0, FALSE, NULL, NULL, 0 },
+  { NULL, 0, FALSE, NULL, NULL, 0 }
 };
 static HMAC_CTX *hmac_write_ctxs[2];
 static struct umac_ctx *umac_write_ctxs[2];
@@ -174,6 +179,7 @@ static void clear_mac(struct sftp_mac *mac) {
 
   mac->digest = NULL;
   mac->algo = NULL;
+  mac->use_aad = FALSE;
 }
 
 static int init_mac(pool *p, struct sftp_mac *mac, HMAC_CTX *hmac_ctx,
@@ -660,7 +666,7 @@ const char *sftp_mac_get_read_algo(void) {
   return NULL;
 }
 
-int sftp_mac_set_read_algo(const char *algo) {
+int sftp_mac_set_read_algo(const char *algo, int use_aad) {
   uint32_t mac_len;
   unsigned int idx = read_mac_idx;
 
@@ -703,6 +709,8 @@ int sftp_mac_set_read_algo(const char *algo) {
   }
 
   read_macs[idx].mac_len = mac_len;
+  read_macs[idx].use_aad = use_aad;
+
   return 0;
 }
 
@@ -793,7 +801,7 @@ const char *sftp_mac_get_write_algo(void) {
   return NULL;
 }
 
-int sftp_mac_set_write_algo(const char *algo) {
+int sftp_mac_set_write_algo(const char *algo, int use_aad) {
   uint32_t mac_len;
   unsigned int idx = write_mac_idx;
 
@@ -836,6 +844,8 @@ int sftp_mac_set_write_algo(const char *algo) {
   }
 
   write_macs[idx].mac_len = mac_len;
+  write_macs[idx].use_aad = use_aad;
+
   return 0;
 }
 

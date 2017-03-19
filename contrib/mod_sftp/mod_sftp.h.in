@@ -49,6 +49,9 @@
 /* Define if you have OpenSSL with crippled AES support. */
 #undef HAVE_AES_CRIPPLED_OPENSSL
 
+/* Define if you have OpenSSL with AES GCM support. */
+#undef HAVE_AES_GCM_OPENSSL
+
 /* Define if you have OpenSSL with SHA256 support. */
 #undef HAVE_SHA256_OPENSSL
 

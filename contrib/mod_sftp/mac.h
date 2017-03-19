@@ -38,15 +38,15 @@ size_t sftp_mac_get_block_size(void);
 void sftp_mac_set_block_size(size_t);
 
 const char *sftp_mac_get_read_algo(void);
-int sftp_mac_set_read_algo(const char *);
-int sftp_mac_set_read_key(pool *, const EVP_MD *, const BIGNUM *, const char *,
-  uint32_t, int);
-int sftp_mac_read_data(struct ssh2_packet *);
+int sftp_mac_set_read_algo(const char *name, int use_aad);
+int sftp_mac_set_read_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
+  const char *h, uint32_t hlen, int role);
+int sftp_mac_read_data(struct ssh2_packet *pkt);
 
 const char *sftp_mac_get_write_algo(void);
-int sftp_mac_set_write_algo(const char *);
-int sftp_mac_set_write_key(pool *, const EVP_MD *, const BIGNUM *, const char *,
-  uint32_t, int);
-int sftp_mac_write_data(struct ssh2_packet *);
+int sftp_mac_set_write_algo(const char *name, int use_aad);
+int sftp_mac_set_write_key(pool *p, const EVP_MD *hash, const BIGNUM *k,
+  const char *h, uint32_t hlen, int role);
+int sftp_mac_write_data(struct ssh2_packet *pkt);
 
 #endif /* MOD_SFTP_MAC_H */
