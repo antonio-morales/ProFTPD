@@ -62,14 +62,12 @@ static union block_hdr *block_freelist = NULL;
 static unsigned int stat_malloc = 0;	/* incr when malloc required */
 static unsigned int stat_freehit = 0;	/* incr when freelist used */
 
-#ifdef PR_USE_DEVEL
 static const char *trace_channel = "pool";
-#endif /* PR_USE_DEVEL */
 
-#ifdef PR_USE_DEVEL
 /* Debug flags */
 static int debug_flags = 0;
 
+#ifdef PR_USE_DEVEL
 static void oom_printf(const char *fmt, ...) {
   char buf[PR_TUNABLE_BUFFER_SIZE];
   va_list msg;
@@ -248,8 +246,6 @@ pool *global_config_pool = NULL;
 #define POOL_HDR_CLICKS (1 + ((sizeof(struct pool_rec) - 1) / CLICK_SZ))
 #define POOL_HDR_BYTES (POOL_HDR_CLICKS * CLICK_SZ)
 
-#ifdef PR_USE_DEVEL
-
 static unsigned long blocks_in_block_list(union block_hdr *blok) {
   unsigned long count = 0;
 
@@ -276,8 +272,9 @@ static unsigned int subpools_in_pool(pool *p) {
   unsigned int count = 0;
   pool *iter;
 
-  if (p->sub_pools == NULL)
+  if (p->sub_pools == NULL) {
     return 0;
+  }
 
   for (iter = p->sub_pools; iter; iter = iter->sub_next) {
     /* Count one for the current subpool (iter). */
@@ -290,23 +287,23 @@ static unsigned int subpools_in_pool(pool *p) {
 /* Walk all pools, starting with top level permanent pool, displaying a
  * tree.
  */
-static long walk_pools(pool *p, unsigned long level,
-    void (*debugf)(const char *, ...)) {
-  char _levelpad[80] = "";
-  long total = 0;
+static unsigned long walk_pools(pool *p, unsigned long level,
+    void (*debugf)(const char *, ...), int flags) {
+  char indent[80] = "";
+  unsigned long total = 0;
 
   if (p == NULL) {
     return 0;
   }
 
   if (level > 1) {
-    memset(_levelpad, ' ', sizeof(_levelpad)-1);
+    memset(indent, ' ', sizeof(indent)-1);
 
-    if ((level - 1) * 3 >= sizeof(_levelpad)) {
-      _levelpad[sizeof(_levelpad)-1] = 0;
+    if ((level - 1) * 3 >= sizeof(indent)) {
+      indent[sizeof(indent)-1] = 0;
 
     } else {
-      _levelpad[(level - 1) * 3] = '\0';
+      indent[(level - 1) * 3] = '\0';
     }
   }
 
@@ -319,41 +316,82 @@ static long walk_pools(pool *p, unsigned long level,
    */
 
   for (; p; p = p->sub_next) {
-    total += bytes_in_block_list(p->first);
+    unsigned long byte_count = 0, block_count = 0;
+    unsigned int subpool_count = 0;
+
+    byte_count = bytes_in_block_list(p->first);
+    block_count = blocks_in_block_list(p->first);
+    subpool_count = subpools_in_pool(p);
+
+    total += byte_count;
     if (level == 0) {
-      debugf("%s [%p] (%lu B, %lu L, %u P)",
-        p->tag ? p->tag : "<unnamed>", p, bytes_in_block_list(p->first),
-        blocks_in_block_list(p->first), subpools_in_pool(p));
+      if (flags & PR_POOL_DEBUG_FL_USE_FIELDS) {
+        debugf("%s [%p] (%lu B, %lu L, %u P)",
+          PR_POOL_DEBUG_FIELD_TAG, p->tag,
+          PR_POOL_DEBUG_FIELD_PTR, p,
+          PR_POOL_DEBUG_FIELD_BLOCK_LIST_BYTES, byte_count,
+          PR_POOL_DEBUG_FIELD_BLOCK_LIST_BLOCKS, block_count,
+          PR_POOL_DEBUG_FIELD_SUBPOOLS, subpool_count, 0);
+
+      } else {
+        debugf("%s [%p] (%lu B, %lu L, %u P)", p->tag ? p->tag : "<unnamed>",
+          p, byte_count, block_count, subpool_count);
+      }
 
     } else {
-      debugf("%s + %s [%p] (%lu B, %lu L, %u P)", _levelpad,
-        p->tag ? p->tag : "<unnamed>", p, bytes_in_block_list(p->first),
-        blocks_in_block_list(p->first), subpools_in_pool(p));
+      if (flags & PR_POOL_DEBUG_FL_USE_FIELDS) {
+        debugf("%s + %s [%p] (%lu B, %lu L, %u P)",
+          PR_POOL_DEBUG_FIELD_TEXT, indent,
+          PR_POOL_DEBUG_FIELD_TAG, p->tag,
+          PR_POOL_DEBUG_FIELD_PTR, p,
+          PR_POOL_DEBUG_FIELD_BLOCK_LIST_BYTES, byte_count,
+          PR_POOL_DEBUG_FIELD_BLOCK_LIST_BLOCKS, block_count,
+          PR_POOL_DEBUG_FIELD_SUBPOOLS, subpool_count, 0);
+
+      } else {
+        debugf("%s + %s [%p] (%lu B, %lu L, %u P)", indent,
+          p->tag ? p->tag : "<unnamed>", p, byte_count, block_count,
+          subpool_count);
+      }
     }
 
     /* Recurse */
     if (p->sub_pools) {
-      total += walk_pools(p->sub_pools, level+1, debugf);
+      total += walk_pools(p->sub_pools, level+1, debugf, flags);
     }
   }
 
   return total;
 }
 
-static void debug_pool_info(void (*debugf)(const char *, ...)) {
-  if (block_freelist) {
-    debugf("Free block list: %lu bytes",
-      bytes_in_block_list(block_freelist));
+static void debug_pool_info(void (*debugf)(const char *, ...), int flags) {
+  unsigned long count = 0;
 
-  } else {
-    debugf("Free block list: empty");
+  if (block_freelist) {
+    count = bytes_in_block_list(block_freelist);
   }
 
-  debugf("%u blocks allocated", stat_malloc);
-  debugf("%u blocks reused", stat_freehit);
+  if (flags & PR_POOL_DEBUG_FL_USE_FIELDS) {
+    debugf("Free block list: %lu bytes", PR_POOL_DEBUG_FIELD_FREE_LIST_BYTES,
+      count, 0);
+
+  } else {
+    debugf("Free block list: %lu bytes", count);
+  }
+
+  if (flags & PR_POOL_DEBUG_FL_USE_FIELDS) {
+    debugf("%u blocks allocated", PR_POOL_DEBUG_FIELD_BLOCKS_ALLOCATED,
+      stat_malloc, 0);
+    debugf("%u blocks reused", PR_POOL_DEBUG_FIELD_BLOCKS_REUSED,
+      stat_freehit, 0);
+
+  } else {
+    debugf("%u blocks allocated", stat_malloc);
+    debugf("%u blocks reused", stat_freehit);
+  }
 }
 
-static void pool_printf(const char *fmt, ...) {
+static void pool_debug_printf(const char *fmt, ...) {
   char buf[PR_TUNABLE_BUFFER_SIZE];
   va_list msg;
 
@@ -368,13 +406,34 @@ static void pool_printf(const char *fmt, ...) {
 }
 
 void pr_pool_debug_memory(void (*debugf)(const char *, ...)) {
+  unsigned long total;
+
   if (debugf == NULL) {
-    debugf = pool_printf;
+    debugf = pool_debug_printf;
   }
 
   debugf("Memory pool allocation:");
-  debugf("Total %lu bytes allocated", walk_pools(permanent_pool, 0, debugf));
-  debug_pool_info(debugf);
+  total = walk_pools(permanent_pool, 0, debugf, 0);
+  debugf("Total %lu bytes allocated", total);
+  debug_pool_info(debugf, 0);
+}
+
+static void pool_debug2_printf(const char *fmt, ...) {
+}
+
+void pr_pool_debug_memory2(void (*debugf)(const char *, ...)) {
+  unsigned long total;
+  int flags = PR_POOL_DEBUG_FL_USE_FIELDS;
+
+  if (debugf == NULL) {
+    debugf = pool_debug2_printf;
+  }
+
+  debugf("Memory pool allocation:");
+  total = walk_pools(permanent_pool, 0, debugf, flags);
+  debugf("Total %lu bytes allocated", PR_POOL_DEBUG_FIELD_BYTES_ALLOCATED,
+    total);
+  debug_pool_info(debugf, flags);
 }
 
 int pr_pool_debug_set_flags(int flags) {
@@ -386,7 +445,6 @@ int pr_pool_debug_set_flags(int flags) {
   debug_flags = flags;
   return 0;
 }
-#endif /* PR_USE_DEVEL */
 
 void pr_pool_tag(pool *p, const char *tag) {
   if (p == NULL ||

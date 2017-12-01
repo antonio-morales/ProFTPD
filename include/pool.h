@@ -2,7 +2,7 @@
  * ProFTPD - FTP server daemon
  * Copyright (c) 1997, 1998 Public Flood Software
  * Copyright (c) 1999, 2000 MacGyver aka Habeeb J. Dihu <macgyver@tos.net>
- * Copyright (c) 2001-2015 The ProFTPD Project team
+ * Copyright (c) 2001-2017 The ProFTPD Project team
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,13 +51,23 @@ void *pcalloc(struct pool_rec *, size_t);
 void *pcallocsz(struct pool_rec *, size_t);
 void pr_pool_tag(struct pool_rec *, const char *);
 
-#ifdef PR_USE_DEVEL
-void pr_pool_debug_memory(void (*)(const char *, ...));
-
 int pr_pool_debug_set_flags(int);
 #define PR_POOL_DEBUG_FL_OOM_DUMP_POOLS	0x001
+#define PR_POOL_DEBUG_FL_USE_FIELDS	0x002
 
-#endif /* PR_USE_DEVEL */
+void pr_pool_debug_memory(void (*)(const char *, ...));
+
+void pr_pool_debug_memory2(void (*)(const char *, ...));
+#define PR_POOL_DEBUG_FIELD_TAG			1
+#define PR_POOL_DEBUG_FIELD_PTR			2
+#define PR_POOL_DEBUG_FIELD_BLOCK_LIST_BYTES	3
+#define PR_POOL_DEBUG_FIELD_BLOCK_LIST_BLOCKS	4
+#define PR_POOL_DEBUG_FIELD_SUBPOOLS		5
+#define PR_POOL_DEBUG_FIELD_FREE_LIST_BYTES	6
+#define PR_POOL_DEBUG_FIELD_BLOCKS_ALLOCATED	7
+#define PR_POOL_DEBUG_FIELD_BLOCKS_REUSED	8
+#define PR_POOL_DEBUG_FIELD_BYTES_ALLOCATED	9
+#define PR_POOL_DEBUG_FIELD_TEXT		10
 
 /* Array management */
 
