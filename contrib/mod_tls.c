@@ -895,13 +895,12 @@ static void tls_reset_state(void) {
 
   tls_verify_depth = 9;
 
-  tls_ctrl_netio = NULL;
-  tls_ctrl_rd_nstrm = NULL;
-  tls_ctrl_wr_nstrm = NULL;
-
-  tls_data_netio = NULL;
-  tls_data_rd_nstrm = NULL;
-  tls_data_wr_nstrm = NULL;
+  /* Note that we do NOT want to set the netio and nstrm pointers, ctrl and
+   * data, to here.  Why not?  We reset this state when a HOST command
+   * occurs -- but that does NOT cause the NetIO open() to be called again.
+   * And only the NetIO open callback sets our netio/nstrm pointers; so we
+   * leave those as they are (Bug#4370).
+   */
 
   tls_sess_cache = NULL;
 
