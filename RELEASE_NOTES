@@ -18,6 +18,8 @@ ChangeLog files.
   + mod_tls now honors client-provided SNI as part of the TLS handshake,
     for implementing name-based virtual hosts via TLS SNI.
 
+  + Ignore supplemental groups when started as non-root user (Issue#808).
+
   + Changed Configuration Directives
 
     SQLAuthTypes bcrypt (Issue#692)
