@@ -46,6 +46,12 @@
 # include <openssl/opensslv.h>
 #endif /* PR_USE_OPENSSL */
 
+#include "../fuzzing_aux.h"
+
+char *inputFile;
+
+int fd_inputFile;
+
 int (*cmd_auth_chk)(cmd_rec *);
 void (*cmd_handler)(server_rec *, conn_t *);
 
@@ -1544,6 +1550,7 @@ static void daemon_loop(void) {
   time(&last_error);
 
   while (TRUE) {
+  //for(int nume=0; nume<10; nume++){
     run_schedule();
 
     FD_ZERO(&listenfds);
@@ -1605,7 +1612,9 @@ static void daemon_loop(void) {
     running = 1;
     xerrno = errno = 0;
 
-    PR_DEVEL_CLOCK(i = select(maxfd + 1, &listenfds, NULL, NULL, &tv));
+    //PR_DEVEL_CLOCK(i = select(maxfd + 1, &listenfds, NULL, NULL, &tv));
+    i = 1;
+
     if (i < 0) {
       xerrno = errno;
     }
@@ -1912,7 +1921,6 @@ static void standalone_main(void) {
       strerror(errno));
     exit(1);
   }
-
   daemon_loop();
 }
 
@@ -2241,6 +2249,37 @@ int main(int argc, char *argv[], char **envp) {
   socklen_t peerlen;
   struct sockaddr peer;
 
+  //Abrimos el archivo por primera vez
+
+  //Leemos el archivo
+
+  //Extraemos los valores booleanos que utilizaremos para la configuración
+
+  //Eliminamos esos datos leidos del fichero
+
+  //Cerramos el archivo
+
+  //Hack for 'nobody' user access to 'afl_out/.cur_input'
+  chmod("./AFL/afl_out", strtol("777", 0, 8));
+  chmod("./AFL/afl_out/.cur_input", strtol("777", 0, 8));
+
+  //Restore privileges in FTP default dir
+  do_chown("/home/fuzzing", "fuzzing", "fuzzing");
+  chmod("/home/fuzzing", strtol("755", 0, 8));
+
+  //Reset input file fd
+  fd_inputFile = -1;
+
+  //Extract last argv argument
+  inputFile = strdup(argv[argc-1]);
+  argc--;
+  argv[argc] = 0;
+
+  if(access(inputFile, F_OK) == -1){
+	  fprintf(stderr, "error accessing input file: %s\n", inputFile);
+	  exit(-1);
+  }
+
 #ifdef HAVE_SET_AUTH_PARAMETERS
   (void) set_auth_parameters(argc, argv);
 #endif
@@ -2452,7 +2491,7 @@ int main(int argc, char *argv[], char **envp) {
   mpid = getpid();
 
   /* Initialize sub-systems */
-  init_signals();
+  //init_signals();
   init_pools();
   init_privs();
   init_log();
@@ -2467,6 +2506,7 @@ int main(int argc, char *argv[], char **envp) {
   init_dirtree();
   init_stash();
   init_json();
+
 
 #ifdef PR_USE_CTRLS
   init_ctrls();

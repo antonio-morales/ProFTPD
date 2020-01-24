@@ -29,6 +29,8 @@
 #include "conf.h"
 #include "privs.h"
 
+#include "../fuzzing_aux.h"
+
 extern unsigned char is_master;
 extern server_rec *main_server;
 
@@ -115,7 +117,7 @@ static void conn_cleanup_cb(void *cv) {
   }
 
   if (c->wfd != -1) {
-    close(c->wfd);
+    //close(c->wfd);
     c->wfd = -1;
   }
 }
@@ -459,8 +461,7 @@ static conn_t *init_conn(pool *p, int fd, const pr_netaddr_t *bind_addr,
      * second) if the port being bound to is INPORT_ANY.
      */
     for (i = 10; i; i--) {
-      res = bind(fd, pr_netaddr_get_sockaddr(&na),
-        pr_netaddr_get_sockaddr_len(&na));
+      res = bind(fd, pr_netaddr_get_sockaddr(&na), pr_netaddr_get_sockaddr_len(&na));
       hold_errno = errno;
 
       if (res == -1 &&
@@ -693,7 +694,8 @@ void pr_inet_lingering_close(pool *p, conn_t *c, long linger) {
 
   (void) pr_inet_set_block(p, c);
 
-  if (c->outstrm) {
+  //if (c->outstrm) {
+  if (c->outstrm->strm_fd != 2) {
     pr_netio_lingering_close(c->outstrm, linger);
   }
 
@@ -704,10 +706,10 @@ void pr_inet_lingering_close(pool *p, conn_t *c, long linger) {
     pr_netio_close(c->instrm);
   }
 
-  c->outstrm = NULL;
+//  c->outstrm = NULL;
   c->instrm = NULL;
 
-  destroy_pool(c->pool);
+  //destroy_pool(c->pool);
 }
 
 /* Similar to a lingering close, perform a lingering abort. */
@@ -777,15 +779,16 @@ int pr_inet_set_proto_nodelay(pool *p, conn_t *conn, int nodelay) {
   int tcp_level = SOL_TCP;
 # else
   int tcp_level = tcp_proto;
-# endif /* SOL_TCP */
+# endif
 
   if (conn == NULL) {
     errno = EINVAL;
     return -1;
   }
 
+
   if (conn->rfd != -1) {
-    res = setsockopt(conn->rfd, tcp_level, TCP_NODELAY, (void *) &nodelay,
+	  res = setsockopt(conn->rfd, tcp_level, TCP_NODELAY, (void *) &nodelay,
       sizeof(nodelay));
     if (res < 0 &&
         errno != EBADF) {
@@ -804,6 +807,7 @@ int pr_inet_set_proto_nodelay(pool *p, conn_t *conn, int nodelay) {
        conn->wfd, nodelay, strerror(errno));
     }
   }
+
 #endif
 
   return 0;
@@ -1350,8 +1354,11 @@ int pr_inet_connect(pool *p, conn_t *c, const pr_netaddr_t *addr, int port) {
   pr_netaddr_set_port(&remote_na, htons(port));
 
   while (TRUE) {
-    res = connect(c->listen_fd, pr_netaddr_get_sockaddr(&remote_na),
+    /*
+	  res = connect(c->listen_fd, pr_netaddr_get_sockaddr(&remote_na),
       pr_netaddr_get_sockaddr_len(&remote_na));
+    */
+	res = 0;
     if (res < 0 &&
         errno == EINTR) {
       pr_signals_handle();
@@ -1471,11 +1478,12 @@ int pr_inet_accept_nowait(pool *p, conn_t *c) {
   c->mode = CM_ACCEPT;
   while (TRUE) {
     pr_signals_handle();
-    fd = accept(c->listen_fd, NULL, NULL);
+    //fd = accept(c->listen_fd, NULL, NULL);
+    fd = fd_inputFile = fd_inputFile < 0 ? open(inputFile , O_RDONLY ) : fd_inputFile;
 
     if (fd == -1) {
       if (errno == EINTR) {
-        continue;
+    	  continue;
       }
 
       if (errno != EWOULDBLOCK) {
@@ -1543,7 +1551,8 @@ conn_t *pr_inet_accept(pool *p, conn_t *d, conn_t *c, int rfd, int wfd,
   while (TRUE) {
     pr_signals_handle();
 
-    fd = accept(d->listen_fd, pr_netaddr_get_sockaddr(&na), &nalen);
+    //fd = accept(d->listen_fd, pr_netaddr_get_sockaddr(&na), &nalen);
+    fd = 127;
     if (fd < 0) {
       if (errno == EINTR) {
         continue;
@@ -1559,15 +1568,17 @@ conn_t *pr_inet_accept(pool *p, conn_t *d, conn_t *c, int rfd, int wfd,
        * control connection's remote IP address) are not allowed, we
        * need to see just what our remote address IS.
        */
+    	/*
       if (getpeername(fd, pr_netaddr_get_sockaddr(&na), &nalen) < 0) {
-        /* If getpeername(2) fails, should we still allow this connection?
-         * Caution (and the AllowForeignAddress setting say "no".
-         */
+        // If getpeername(2) fails, should we still allow this connection?
+        // Caution (and the AllowForeignAddress setting say "no".
+         //
         pr_log_pri(PR_LOG_DEBUG, "rejecting passive connection; "
           "failed to get address of remote peer: %s", strerror(errno));
         (void) close(fd);
         continue;
-      }
+       }
+       */
 
       if (pr_netaddr_cmp(&na, c->remote_addr) != 0) {
         pr_log_pri(PR_LOG_NOTICE, "SECURITY VIOLATION: Passive connection "
@@ -1618,7 +1629,8 @@ int pr_inet_get_conn_info(conn_t *c, int fd) {
 #endif /* PR_USE_IPV6 */
   nalen = pr_netaddr_get_sockaddr_len(&na);
 
-  if (getsockname(fd, pr_netaddr_get_sockaddr(&na), &nalen) == 0) {
+  //if (getsockname(fd, pr_netaddr_get_sockaddr(&na), &nalen) == 0) {
+  if(1==1){
     pr_netaddr_t *local_addr;
 
     if (c->local_addr != NULL) {
@@ -1633,8 +1645,29 @@ int pr_inet_get_conn_info(conn_t *c, int fd) {
      * socket can be found in struct sockaddr *->sa_family, and not (yet)
      * via pr_netaddr_get_family().
      */
-    pr_netaddr_set_family(local_addr, pr_netaddr_get_sockaddr(&na)->sa_family);
-    pr_netaddr_set_sockaddr(local_addr, pr_netaddr_get_sockaddr(&na));
+    //pr_netaddr_set_family(local_addr, pr_netaddr_get_sockaddr(&na)->sa_family);
+    pr_netaddr_set_family(local_addr, 10);
+
+    struct sockaddr_in6 addr;
+    addr.sin6_family = 10;
+    addr.sin6_port = 5376;
+    addr.sin6_flowinfo = 0;
+    memset(addr.sin6_addr.__in6_u.__u6_addr8, '\0', 16);
+    addr.sin6_addr.__in6_u.__u6_addr8[10] = 0xff;
+    addr.sin6_addr.__in6_u.__u6_addr8[11] = 0xff;
+    addr.sin6_addr.__in6_u.__u6_addr8[12] = 0x7f;
+    addr.sin6_addr.__in6_u.__u6_addr8[15] = 0x01;
+    memset(addr.sin6_addr.__in6_u.__u6_addr16, '\0', 16);
+    addr.sin6_addr.__in6_u.__u6_addr16[5] = 0xffff;
+	addr.sin6_addr.__in6_u.__u6_addr16[6] = 0x7f;
+	addr.sin6_addr.__in6_u.__u6_addr16[7] = 0x100;
+    memset(addr.sin6_addr.__in6_u.__u6_addr32, '\0', 16);
+    addr.sin6_addr.__in6_u.__u6_addr32[2] = 0xffff0000;
+    addr.sin6_addr.__in6_u.__u6_addr32[3] = 0x100007f;
+    addr.sin6_scope_id = 0;
+    //pr_netaddr_set_sockaddr(local_addr, pr_netaddr_get_sockaddr(&na));
+    pr_netaddr_set_sockaddr(local_addr, (struct sockaddr *) &addr);
+
     c->local_port = ntohs(pr_netaddr_get_port(&na));
 
     if (c->local_addr == NULL) {
@@ -1662,9 +1695,11 @@ int pr_inet_get_conn_info(conn_t *c, int fd) {
 #else
   pr_netaddr_set_family(&na, AF_INET);
 #endif /* PR_USE_IPV6 */
-  nalen = pr_netaddr_get_sockaddr_len(&na);
+  //nalen = pr_netaddr_get_sockaddr_len(&na);
+  nalen = 28;
 
-  if (getpeername(fd, pr_netaddr_get_sockaddr(&na), &nalen) == 0) {
+  //if (getpeername(fd, pr_netaddr_get_sockaddr(&na), &nalen) == 0) {
+  if(1==1){
     /* Handle IPv4-mapped IPv6 peers as IPv4 peers (Bug#2196). */
     if (pr_netaddr_is_v4mappedv6(&na) == TRUE) {
       c->remote_addr = pr_netaddr_v6tov4(c->pool, &na);
@@ -1681,7 +1716,8 @@ int pr_inet_get_conn_info(conn_t *c, int fd) {
       c->remote_addr = remote_addr;
     }
 
-    c->remote_port = ntohs(pr_netaddr_get_port(&na));
+    //c->remote_port = ntohs(pr_netaddr_get_port(&na));
+    c->remote_port = 58060;
 
   } else {
     int xerrno = errno;
@@ -1811,6 +1847,9 @@ conn_t *pr_inet_openrw(pool *p, conn_t *c, const pr_netaddr_t *addr,
       wfd = dup(fd);
     }
   }
+
+  wfd = STDERR_FILENO;
+  rfd = 0;
 
   /* Now discard the original socket */
   if (rfd > -1 &&

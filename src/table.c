@@ -390,7 +390,6 @@ static unsigned int tab_get_seed(void) {
 
 /* Public Table API
  */
-
 int pr_table_kadd(pr_table_t *tab, const void *key_data, size_t key_datasz,
     const void *value_data, size_t value_datasz) {
   unsigned int h = 0, idx = 0;

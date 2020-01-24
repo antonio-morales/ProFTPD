@@ -239,7 +239,8 @@ static int sys_unlink(pr_fs_t *fs, const char *path) {
     }
   }
 
-  res = unlink(path);
+  //res = unlink(path);
+  res = 0;
   return res;
 }
 
@@ -1096,7 +1097,8 @@ static int sys_rmdir(pr_fs_t *fs, const char *path) {
     }
   }
 
-  res = rmdir(path);
+  //res = rmdir(path);
+  res = 0;
   return res;
 }
 
@@ -1579,8 +1581,8 @@ void pr_fs_statcache_free(void) {
     pr_trace_msg(statcache_channel, 11,
       "resetting stat(2) statcache (clearing %d %s)", size,
       size != 1 ? "entries" : "entry");
-    pr_table_empty(stat_statcache_tab);
-    pr_table_free(stat_statcache_tab);
+    //pr_table_empty(stat_statcache_tab);
+    //pr_table_free(stat_statcache_tab);
     stat_statcache_tab = NULL;
     stat_statcache_set = NULL;
   }
@@ -1592,8 +1594,8 @@ void pr_fs_statcache_free(void) {
     pr_trace_msg(statcache_channel, 11,
       "resetting lstat(2) statcache (clearing %d %s)", size,
       size != 1 ? "entries" : "entry");
-    pr_table_empty(lstat_statcache_tab);
-    pr_table_free(lstat_statcache_tab);
+    //pr_table_empty(lstat_statcache_tab);
+    //pr_table_free(lstat_statcache_tab);
     lstat_statcache_tab = NULL;
     lstat_statcache_set = NULL;
   }

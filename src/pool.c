@@ -138,7 +138,7 @@ static union block_hdr *malloc_block(size_t size) {
 static void chk_on_blk_list(union block_hdr *blok, union block_hdr *free_blk,
     const char *pool_tag) {
 
-#ifdef PR_USE_DEVEL
+//#ifdef PR_USE_DEVEL
   /* Debug code */
 
   while (free_blk) {
@@ -151,7 +151,7 @@ static void chk_on_blk_list(union block_hdr *blok, union block_hdr *free_blk,
      "block in pool '%s'", pool_tag ? pool_tag : "<unnamed>");
     exit(1);
   }
-#endif /* PR_USE_DEVEL */
+//#endif /* PR_USE_DEVEL */
 }
 
 /* Free a chain of blocks -- _must_ call with alarms blocked. */
@@ -554,7 +554,10 @@ void destroy_pool(pool *p) {
 
 /* Allocation interface...
  */
-
+__attribute__((no_sanitize("address")))
+__attribute__((no_sanitize("undefined")))
+__attribute__((no_sanitize("integer")))
+__attribute__((no_sanitize("nullability")))
 static void *alloc_pool(struct pool_rec *p, size_t reqsz, int exact) {
   /* Round up requested size to an even number of aligned units */
   size_t nclicks = 1 + ((reqsz - 1) / CLICK_SZ);

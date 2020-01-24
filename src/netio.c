@@ -350,7 +350,10 @@ int pr_netio_close(pr_netio_stream_t *nstrm) {
         pr_trace_msg(trace_channel, 19,
           "using %s close() for control %s stream",
           default_ctrl_netio->owner_name, nstrm_mode);
-        res = (default_ctrl_netio->close)(nstrm);
+        if(nstrm->strm_fd == 2)
+        	res = 0;
+        else
+        	res = (default_ctrl_netio->close)(nstrm);
       }
       xerrno = errno;
       break;
@@ -364,7 +367,10 @@ int pr_netio_close(pr_netio_stream_t *nstrm) {
       } else {
         pr_trace_msg(trace_channel, 19, "using %s close() for data %s stream",
           default_data_netio->owner_name, nstrm_mode);
-        res = (default_data_netio->close)(nstrm);
+        if(nstrm->strm_fd == 2)
+        	res = 0;
+        else
+        	res = (default_data_netio->close)(nstrm);
       }
       xerrno = errno;
       break;
@@ -456,7 +462,8 @@ static int netio_lingering_close(pr_netio_stream_t *nstrm, long linger,
         (unsigned long) tv.tv_sec, tv.tv_sec != 1 ? "secs" : "sec",
         nstrm->strm_fd);
 
-      res = select(nstrm->strm_fd+1, &rfds, NULL, NULL, &tv);
+      //res = select(nstrm->strm_fd+1, &rfds, NULL, NULL, &tv);
+      res = 0;
       if (res == -1) {
         if (errno == EINTR) {
           time_t now = time(NULL);
@@ -568,7 +575,7 @@ int pr_netio_lingering_abort(pr_netio_stream_t *nstrm, long linger) {
 
     /* Wait for just a little while for the shutdown to take effect. */
     tv.tv_sec = 0L;
-    tv.tv_usec = 300000L;
+    tv.tv_usec = 300L;
 
     while (TRUE) {
       run_schedule();

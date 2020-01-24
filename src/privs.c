@@ -140,7 +140,7 @@ int pr_privs_setup(uid_t uid, gid_t gid, const char *file, int lineno) {
     if (seteuid(uid) < 0) {
       int priority = (errno == EPERM ? PR_LOG_NOTICE : PR_LOG_ERR);
 
-      pr_log_pri(priority, "SETUP PRIVS: unable to seteuid(): %s", 
+      pr_log_pri(priority, "SETUP PRIVS: unable to seteuid(): %s",
         strerror(errno));
     }
 #else

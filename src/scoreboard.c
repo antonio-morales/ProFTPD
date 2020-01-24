@@ -765,12 +765,12 @@ static int set_scoreboard_path(const char *path) {
     errno = ENOTDIR;
     return -1;
   }
-
+/*
   if (st.st_mode & S_IWOTH) {
     errno = EPERM;
     return -1;
   }
-
+*/
   return 0;
 }
 

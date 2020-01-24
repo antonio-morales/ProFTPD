@@ -29,7 +29,8 @@ int pr_random_init(void) {
   struct timeval tv;
 
   gettimeofday(&tv, NULL);
-  srandom(getpid() ^ tv.tv_usec);
+  //srandom(getpid() ^ tv.tv_usec);
+  srandom(100);
 #else
   srand((unsigned int) (getpid() * time(NULL)));
 #endif /* HAVE_RANDOM */

@@ -519,6 +519,8 @@ static int sleep_cb(CALLBACK_FRAME) {
 }
 
 int pr_timer_sleep(int seconds) {
+
+
   int timerno = 0;
   sigset_t oset;
 
@@ -554,7 +556,7 @@ int pr_timer_usleep(unsigned long usecs) {
   tv.tv_usec = (usecs - (tv.tv_sec * 1000000));
 
   pr_signals_block();
-  (void) select(0, NULL, NULL, NULL, &tv);
+  //(void) select(0, NULL, NULL, NULL, &tv);
   pr_signals_unblock();
 
   return 0;

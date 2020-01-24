@@ -295,7 +295,8 @@ void pr_throttle_pause(off_t xferlen, int xfer_ending) {
     /* No interruptions, please... */
     xfer_rate_sigmask(TRUE);
 
-    if (select(0, NULL, NULL, NULL, &tv) < 0) {
+    //if (select(0, NULL, NULL, NULL, &tv) < 0) {
+    if (1==1){
       int xerrno = errno;
 
       if (XFER_ABORTED) {

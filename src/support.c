@@ -962,7 +962,6 @@ int check_shutmsg(const char *path, time_t *shut, time_t *deny, time_t *disc,
 
 static unsigned char memscrub_ctr = 0;
 #endif
-
 void pr_memscrub(void *ptr, size_t ptrlen) {
 #if defined(PR_USE_OPENSSL) && OPENSSL_VERSION_NUMBER > 0x000907000L
   if (ptr == NULL ||
