@@ -2581,6 +2581,7 @@ MODRET auth_pass(cmd_rec *cmd) {
   session.dir_config = NULL;
 
   res = setup_env(cmd->tmp_pool, cmd, user, cmd->arg);
+
   if (res == 1) {
     config_rec *c = NULL;
 

@@ -583,7 +583,7 @@ static int ctrls_recv_cl_reqs(void) {
   unsigned long cl_flags = 0;
   int cl_fd, max_fd;
 
-  timeout.tv_usec = 500L;
+  timeout.tv_usec = 100L;
   timeout.tv_sec = 0L;
 
   /* look for any pending client connections */

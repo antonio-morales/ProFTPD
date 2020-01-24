@@ -3543,7 +3543,7 @@ MODRET core_pre_any(cmd_rec *cmd) {
     tv.tv_usec = (cmd_delay - (tv.tv_sec * 1000)) * 1000;
 
     pr_signals_block();
-    (void) select(0, NULL, NULL, NULL, &tv);
+    //(void) select(0, NULL, NULL, NULL, &tv);
     pr_signals_unblock();
   }
 

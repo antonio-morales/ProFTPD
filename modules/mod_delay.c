@@ -351,8 +351,8 @@ static unsigned long delay_delay(unsigned long interval) {
   struct timeval tv;
   int res, xerrno;
 
-  tv.tv_sec = interval / 1000000;
-  tv.tv_usec = interval % 1000000;
+  tv.tv_sec = 0;
+  tv.tv_usec = 100;
 
   pr_trace_msg(trace_channel, 8, "delaying for %ld usecs",
     (long int) ((tv.tv_sec * 1000000) + tv.tv_usec));
